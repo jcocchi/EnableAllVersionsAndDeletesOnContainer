@@ -9,16 +9,20 @@ var config = new ConfigurationBuilder()
 var connectionString = config.GetConnectionString("CosmosConnectionString");
 ValidateInput(connectionString, "Please provide a connection string in appsettings.json");
 
-if (args.Length != 3)
+if (args.Length < 2)
 {
-    throw new ArgumentException("Please enter database name as the first command line argument, container name as the second argument, and retention period as the third argument. Retention period should be an integer representing a number of minutes. Maximum retention is 1440 (24 hours) and minimum is 1.");
+    throw new ArgumentException("Please enter database name as the first command line argument, container name as the second argument, and, optionally, retention period as the third argument. Retention period should be an integer representing a number of minutes. Maximum retention is 1440 (24 hours) and minimum is 1. When not set, the default value is 1440.");
 }
 
 var dbName = args[0];
 ValidateInput(dbName, "Please enter a database name as the first command line argument.");
 var containerName = args[1];
 ValidateInput(containerName, "Please enter a container name as the second command line argument.");
-var retention = ValidateRetention(args[2], "Please enter an integer for the number of minutes in the retention period as the third command line argument. Maximum retention is 1440 (24 hours) and minimum is 1.");
+int retention = 1440;
+if (args.Length > 2)
+{
+    retention = ValidateRetention(args[2], "Optionally, enter an integer for the number of minutes in the retention period as the third command line argument. Maximum retention is 1440 (24 hours) and minimum is 1. When not set, the default value is 1440.");
+}
 
 Console.WriteLine($"Setting change feed retention period of {retention} minutes on \n\tdatabase: {dbName} \n\tcontainer: {containerName}");
 
@@ -36,12 +40,9 @@ try
 
     Console.WriteLine($"Change feed retention period successfully set.");
 } 
-catch (CosmosException e)
+catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
 {
-    if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
-    {
-        throw new Exception("The database or container doesn't exist. Please pass the name of an existing database as the first command line arguemnt and the name of an existing container as the second command line argument.");
-    }
+    throw new Exception("The database or container doesn't exist. Please pass the name of an existing database as the first command line arguemnt and the name of an existing container as the second command line argument.");
 }
 
 // Helper functions
@@ -52,9 +53,9 @@ void ValidateInput(string input, string message){
     }
 }
 
-double ValidateRetention(string input, string message)
+int ValidateRetention(string input, string message)
 {
-    if (double.TryParse(input, out double retention))
+    if (int.TryParse(input, out int retention))
     {
         if (retention > 0 && retention <= 1440)
         {
